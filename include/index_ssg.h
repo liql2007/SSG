@@ -34,6 +34,14 @@ class IndexSSG : public Index {
                           const Parameters &parameters, unsigned *indices);
   void OptimizeGraph(const float *data);
 
+  void loadInitIds(unsigned L);
+
+  std::vector<unsigned>& initIds() { return init_ids; }
+
+  unsigned getVisitNum() const { return visitNum; }
+
+  unsigned getHops() const { return hops; }
+
  protected:
   typedef std::vector<std::vector<unsigned>> CompactGraph;
   typedef std::vector<SimpleNeighbors> LockGraph;
@@ -75,6 +83,9 @@ class IndexSSG : public Index {
   size_t data_len;
   size_t neighbor_len;
   KNNGraph nnd_graph;
+  std::vector<unsigned> init_ids;
+  unsigned visitNum;
+  unsigned hops;
 };
 
 }  // namespace efanna2e

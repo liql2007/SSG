@@ -347,11 +347,13 @@ void IndexSSG::Link(const Parameters &parameters, SimpleNeighbor *cut_graph_) {
 
 void IndexSSG::Build(size_t n, const float *data,
                      const Parameters &parameters) {
+  auto s1 = std::chrono::high_resolution_clock::now();
+
   std::string nn_graph_path = parameters.Get<std::string>("nn_graph_path");
   unsigned range = parameters.Get<unsigned>("R");
   Load_nn_graph(nn_graph_path.c_str());
   data_ = data;
-  init_graph(parameters);
+  // init_graph(parameters);
   SimpleNeighbor *cut_graph_ = new SimpleNeighbor[nd_ * (size_t)range];
   Link(parameters, cut_graph_);
   final_graph_.resize(nd_);
@@ -372,7 +374,15 @@ void IndexSSG::Build(size_t n, const float *data,
     }
   }
 
+  auto s2 = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff = s2 - s1;
+  std::cout << "link time: " << diff.count() << "\n";
+
   DFS_expand(parameters);
+
+  auto s3 = std::chrono::high_resolution_clock::now();
+  diff = s3 - s2;
+  std::cout << "dfs time: " << diff.count() << "\n";
 
   unsigned max, min, avg;
   max = 0;
@@ -462,20 +472,26 @@ void IndexSSG::Search(const float *query, const float *x, size_t K,
   }
 }
 
+void IndexSSG::loadInitIds(unsigned L) {
+  init_ids.resize(L);
+  std::mt19937 rng(rand());
+  GenRandom(rng, init_ids.data(), L, (unsigned)nd_);
+  assert(eps_.size() < L);
+  init_ids.resize(eps_.size());
+  for(unsigned i=0; i<eps_.size(); i++){
+    init_ids[i] = eps_[i];
+  }
+}
+
 void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
                                   const Parameters &parameters,
                                   unsigned *indices) {
   unsigned L = parameters.Get<unsigned>("L_search");
   DistanceFastL2 *dist_fast = (DistanceFastL2 *)distance_;
-
-  std::vector<Neighbor> retset(L + 1);
-  std::vector<unsigned> init_ids(L);
-  std::mt19937 rng(rand());
-  GenRandom(rng, init_ids.data(), L, (unsigned)nd_);
-  assert(eps_.size() < L);
-  for(unsigned i=0; i<eps_.size(); i++){
-    init_ids[i] = eps_[i];
-  }
+  std::vector<Neighbor> retset;
+  retset.reserve(L + 1);
+  visitNum = 0;
+  hops = 0;
 
   boost::dynamic_bitset<> flags{nd_, 0};
   for (unsigned i = 0; i < init_ids.size(); i++) {
@@ -483,24 +499,24 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
     if (id >= nd_) continue;
     _mm_prefetch(opt_graph_ + node_size * id, _MM_HINT_T0);
   }
-  L = 0;
-  for (unsigned i = 0; i < init_ids.size(); i++) {
+
+  for (unsigned i = 0; i < init_ids.size() && i < L; i++) {
     unsigned id = init_ids[i];
     if (id >= nd_) continue;
     float *x = (float *)(opt_graph_ + node_size * id);
     float norm_x = *x;
     x++;
     float dist = dist_fast->compare(x, query, norm_x, (unsigned)dimension_);
-    retset[i] = Neighbor(id, dist, true);
+    retset.emplace_back(id, dist, true);
     flags[id] = true;
-    L++;
+    ++visitNum;
   }
   // std::cout<<L<<std::endl;
-
-  std::sort(retset.begin(), retset.begin() + L);
+  std::sort(retset.begin(), retset.end());
+  size_t retSize = retset.size();
   int k = 0;
-  while (k < (int)L) {
-    int nk = L;
+  while (k < (int)retSize) {
+    int nk = retSize;
 
     if (retset[k].flag) {
       retset[k].flag = false;
@@ -521,11 +537,12 @@ void IndexSSG::SearchWithOptGraph(const float *query, size_t K,
         data++;
         float dist =
             dist_fast->compare(query, data, norm, (unsigned)dimension_);
-        if (dist >= retset[L - 1].distance) continue;
+        ++visitNum;
+        if (dist >= retset[L - 1].distance && retSize == L) continue;
+        ++hops;
         Neighbor nn(id, dist, true);
-        int r = InsertIntoPool(retset.data(), L, nn);
-
-        // if(L+1 < retset.size()) ++L;
+        int r = InsertIntoPool(retset.data(), retSize, nn);
+        if(L > retSize) ++retSize;
         if (r < nk) nk = r;
       }
     }

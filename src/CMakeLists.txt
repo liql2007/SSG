@@ -11,6 +11,6 @@ list(
 
 add_library(${PROJECT_NAME} ${CPP_SOURCES})
 add_library(${PROJECT_NAME}_s STATIC ${CPP_SOURCES})
-pybind11_add_module(pyssg python.cpp ${CPP_SOURCES})
+# pybind11_add_module(pyssg python.cpp ${CPP_SOURCES})
 
 #install()

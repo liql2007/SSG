@@ -6,6 +6,18 @@
 #include "index_ssg.h"
 #include "util.h"
 
+void system() {
+#ifdef __GNUC__
+#ifdef __AVX__
+    std::cout << "** AVX **" << std::endl;
+#elif __SSE2__
+    std::cout << "** SSE2 **" << std::endl;
+#else
+    std::cout << "** NONE **" << std::endl;
+#endif
+#endif
+}
+
 int main(int argc, char** argv) {
   if (argc < 7) {
     std::cout << "./run data_file nn_graph_path L R Angle save_graph_file [seed]"
@@ -19,11 +31,13 @@ int main(int argc, char** argv) {
     std::cout << "Using Seed " << seed << std::endl;
   }
 
+  system();
+
   std::cerr << "Data Path: " << argv[1] << std::endl;
 
   unsigned points_num, dim;
   float* data_load = nullptr;
-  data_load = efanna2e::load_data(argv[1], points_num, dim);
+  data_load = efanna2e::load_data<float>(argv[1], points_num, dim);
   data_load = efanna2e::data_align(data_load, points_num, dim);
 
   std::string nn_graph_path(argv[2]);
