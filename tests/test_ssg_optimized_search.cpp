@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
       auto& initIds = index.initIds();
       loadInitIdFunc = [&initIds, &lastResult](unsigned qi) {
           initIds = lastResult[qi];
-          // initIds.resize(initIds.size()/2);
+          initIds.resize(initIds.size()/2);
           // initIds.resize(1);
       };
       searchFunc();
